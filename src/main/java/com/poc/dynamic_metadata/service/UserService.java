@@ -2,15 +2,15 @@ package com.poc.dynamic_metadata.service;
 
 import com.poc.dynamic_metadata.dto.UserRequest;
 import com.poc.dynamic_metadata.dto.UserUpdateRequest;
+import com.poc.dynamic_metadata.exception.ResourceNotFound;
 import com.poc.dynamic_metadata.model.User;
 import com.poc.dynamic_metadata.repository.UserRepository;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.util.ObjectUtils;
-
-import java.util.Optional;
 
 @Slf4j
 @Service
@@ -31,32 +31,38 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    public User getUserByUsername(String username){
+    public User getUserByUsername(String username) {
         log.info("Getting user info for username : {}",username);
-        return userRepository.findByUsername(username);
+        return userRepository
+                .findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFound("User with username "+username+" not found"));
+
     }
 
-    public User getUserByUid(String uid) throws Exception {
+    public User getUserByUid(String uid)  {
         log.info("Getting user info for uid: {}",uid);
-        Optional<User> userOptional = userRepository.findById(uid);
-        if(userOptional.isPresent()){
-            return userOptional.get();
-        }
-        else{
-            throw new Exception("User with uid "+uid+" does not exist");
-        }
+        return userRepository
+                .findById(uid)
+                .orElseThrow(() -> new ResourceNotFound("User with uid "+uid+" not found"));
     }
 
     public User updateUser(UserUpdateRequest userUpdateRequest){
-        Optional<User> userOptional = userRepository.findById(userUpdateRequest.getUid());
-        User userInfo = userOptional.get();
-        if(!userInfo.getUsername().equalsIgnoreCase(userUpdateRequest.getUsername())){
-            if(ObjectUtils.isEmpty(userRepository.findByUsername(userUpdateRequest.getUsername()))){
-                userInfo.setUsername(userUpdateRequest.getUsername());
-            }
-        }
-        userInfo.setUserMetadata(userUpdateRequest.getUserMetadata());
-        return userRepository.save(userInfo);
+        String username = userUpdateRequest.getUsername();
+        String uid = userUpdateRequest.getUid();
+
+        User user = userRepository
+                .findByUidAndUsername(uid, username)
+                .orElseThrow(
+                        () -> new ResourceNotFound("User with username "+username+", uid "+uid+" not found")
+                );
+
+        user.setUserMetadata(userUpdateRequest.getUserMetadata());
+        return userRepository.save(user);
+    }
+
+    public void deleteUser(String username){
+        User user = userRepository.findByUsername(username).orElseThrow(() -> new ResourceNotFound("User with username "+username+" not found"));
+        userRepository.delete(user);
     }
 
 }
